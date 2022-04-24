@@ -85,7 +85,7 @@ class ED:
 
         Returns
         -------
-        Append to the class data all the information regarding the level added
+        id of energy level for add_link
         '''
 
         if position is None:
@@ -105,6 +105,7 @@ class ED:
                 top_text = round(energy,self.round_energies_at_digit)
 
         link = []
+        id = len(self.energies)
         self.colors.append(color)
         self.energies.append(energy)
         self.positions.append(position)
@@ -115,6 +116,7 @@ class ED:
         self.links.append(link)
         self.level_linestyles.append(linestyle)
         self.arrows.append([])
+        return id
 
     def add_arrow(self, start_level_id, end_level_id):
         '''
@@ -359,23 +361,23 @@ class ED:
 
 if __name__ == '__main__':
     a = ED()
-    a.add_level(0, 'Separated Reactants')
-    a.add_level(-5.4, 'mlC1')
-    a.add_level(-15.6, 'mlC2', 'last',)
-    a.add_level(28.5, 'mTS1', color='g')
-    a.add_level(-9.7, 'mCARB1')
-    a.add_level(-19.8, 'mCARB2', 'last')
-    a.add_level(20, 'mCARBX', 'last')
-    a.add_link(0, 1, color='r')
-    a.add_link(0, 2)
-    a.add_link(2, 3, color='b')
-    a.add_link(1, 3)
-    a.add_link(3, 4, color='g')
-    a.add_link(3, 5)
-    a.add_link(0, 6)
+    level0 = a.add_level(0, 'Separated Reactants')
+    level1 = a.add_level(-5.4, 'mlC1')
+    level2 = a.add_level(-15.6, 'mlC2', 'last',)
+    level3 = a.add_level(28.5, 'mTS1', color='g')
+    level4 = a.add_level(-9.7, 'mCARB1')
+    level5 = a.add_level(-19.8, 'mCARB2', 'last')
+    level6 = a.add_level(20, 'mCARBX', 'last')
+    a.add_link(level0, level1, color='r')
+    a.add_link(level0, level2)
+    a.add_link(level2, level3, color='b')
+    a.add_link(level1, level3)
+    a.add_link(level3, level4, color='g')
+    a.add_link(level3, level5)
+    a.add_link(level0, level6)
     a.add_electronbox(level_id=0, boxes=1, electrons=2, side=3, spacing_f=3)
-    a.add_electronbox(3, 3, 1, 3, 3)
-    a.add_electronbox(5, 3, 5, 3, 3)
-    a.add_arrow(6, 4)
+    a.add_electronbox(level3, 3, 1, 3, 3)
+    a.add_electronbox(level5, 3, 5, 3, 3)
+    a.add_arrow(level6, level4)
     a.offset *= 2
     a.plot(show_IDs=True)
