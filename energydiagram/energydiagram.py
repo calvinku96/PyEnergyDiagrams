@@ -173,7 +173,8 @@ class ED:
                         boxes,
                         electrons,
                         side=0.5,
-                        spacing_f=5):
+                        spacing_f=5,
+                        priority='up'):
         '''
         Method of ED class
         Add a link between two energy levels using IDs of the level. Use
@@ -195,7 +196,7 @@ class ED:
         x = self.positions[level_id] * \
             (self.dimension+self.space)+self.dimension*0.5
         y = self.energies[level_id]
-        self.electons_boxes.append((x, y, boxes, electrons, side, spacing_f))
+        self.electons_boxes.append((x, y, boxes, electrons, side, spacing_f, priority))
 
     def plot(self, show_IDs=False, ylabel="Energy / $kcal$ $mol^{-1}$", ax: plt.Axes = None):
         '''
@@ -330,8 +331,8 @@ class ED:
         for box in self.electons_boxes:
             # here we add the boxes
             # x,y,boxes,electrons,side,spacing_f
-            x, y, boxes, electrons, side, spacing_f = box
-            plot_orbital_boxes(ax, x, y, boxes, electrons, side, spacing_f)
+            x, y, boxes, electrons, side, spacing_f, priority = box
+            plot_orbital_boxes(ax, x, y, boxes, electrons, side, spacing_f, priority)
 
     def __auto_adjust(self):
         '''
