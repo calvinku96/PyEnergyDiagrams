@@ -28,6 +28,8 @@ class ED:
         self.offset_ratio = 0.02
         self.color_bottom_text = 'blue'
         self.color_top_text = 'blue'
+        self.color_left_text = 'blue'
+        self.color_right_text = 'blue'
         self.aspect = aspect
         self.round_energies_at_digit = "keep all digits"
         # data
@@ -42,13 +44,26 @@ class ED:
         self.links = []
         self.arrows = []
         self.electons_boxes = []
-        self.level_linestyles = []
+        self.level_hline_kwargs = []
+        self.text_offsets = []
+
+        self.plot_dots_kwargs = {
+            'marker': 'o',
+            'linestyle': '',
+        }
         # matplotlib fiugre handlers
         self.fig = None
         self.ax = None
 
     def add_level(self, energy, bottom_text='', position=None, color='k',
-                  top_text='Energy', right_text='', left_text='',linestyle='solid'):
+                  top_text='', right_text='', left_text='',
+                  text_offsets = {
+                      'bottom': (0.,0.),
+                      'top':    (0.,0.),
+                      'left':   (0.,0.),
+                      'right':  (0.,0.),
+                  },
+                  linestyle='solid', **kwargs):
         '''
         Method of ED class
         This method add a new energy level to the plot.
@@ -71,18 +86,20 @@ class ED:
         color  : str
                 Color of the level  (default  'k')
         top_text  : str
-                Text on the top of the level. By default it will print the
-                energy of the level. (default  'Energy')
+                Text on the top of the level. (default '')
         right_text  : str
                 Text at the right of the level. (default  '')
         left_text  : str
                 Text at the left of the level. (default  '')
+        text_offsets : dict
+                Offsets in data coordinates to apply to the text.
+                This method inserts (0.,0.) for missing key
+                ('bottom', 'top', 'left', 'right')
         linestyle  : str
                 The linestyle of the level, one of the following values:
                 'solid', 'dashed', 'dashdot', 'dotted' (default  'solid')
-
-
-
+        **kwargs : dict
+                Arguments passed on to axhline.
 
         Returns
         -------
@@ -105,7 +122,15 @@ class ED:
             else:
                 top_text = round(energy,self.round_energies_at_digit)
 
-        link = []
+        offsets = {
+            'bottom': (0.,0.),
+            'top':    (0.,0.),
+            'left':   (0.,0.),
+            'right':  (0.,0.),
+        }
+        if text_offsets is not None:
+            offsets |= text_offsets
+
         id = len(self.energies)
         self.colors.append(color)
         self.energies.append(energy)
@@ -114,8 +139,8 @@ class ED:
         self.bottom_texts.append(bottom_text)
         self.left_texts.append(left_text)
         self.right_texts.append(right_text)
-        self.links.append(link)
-        self.level_linestyles.append(linestyle)
+        self.level_hline_kwargs.append({'linestyle': linestyle} | kwargs)
+        self.text_offsets.append(offsets)
         self.arrows.append([])
         return id
 
@@ -140,10 +165,7 @@ class ED:
         self.arrows[start_level_id].append(end_level_id)
 
     def add_link(self, start_level_id, end_level_id,
-                 color='k',
-                 ls='--',
-                 linewidth=1,
-                 ):
+                 color='k', ls='--', linewidth=1, **kwargs):
         '''
         Method of ED class
         Add a link between two energy levels using IDs of the level. Use
@@ -161,13 +183,22 @@ class ED:
                 line styple e.g. -- , ..
         linewidth : int
                 line width
+        **kwargs : dict
+                Additional arguments to Line2D
 
         Returns
         -------
         Append link to self.links
 
         '''
-        self.links[start_level_id].append((end_level_id, ls, linewidth, color))
+        self.links.append((
+            start_level_id, end_level_id,
+            {
+                'color': color,
+                'ls': ls,
+                'linewidth': linewidth
+            } | kwargs
+        ))
 
     def add_electronbox(self,
                         level_id,
@@ -228,73 +259,50 @@ class ED:
 
         '''
 
-        # Create a figure and axis if the user didn't specify them.
-        if not ax:
-            self.fig = plt.figure()
-            self.ax = self.fig.add_subplot(111, aspect=self.aspect)
-        # Otherwise register the axes and figure the user passed.
-        else:
-            self.ax = ax
-            self.fig = ax.figure
-
-            # Constrain the target axis to have the proper aspect ratio
-            self.ax.set_aspect(self.aspect)
-
-        self.ax.set_ylabel(ylabel)
-        self.ax.axes.get_xaxis().set_visible(False)
-        self.ax.spines['top'].set_visible(False)
-        self.ax.spines['right'].set_visible(False)
-        self.ax.spines['bottom'].set_visible(False)
-
+        self.__create_figure_ax(ax, ylabel)
         self.__auto_adjust()
 
-        data = list(zip(self.energies,  # 0
-                   self.positions,  # 1
-                   self.bottom_texts,  # 2
-                   self.top_texts,  # 3
-                   self.colors,  # 4    
-                   self.right_texts, # 5
-                   self.left_texts, # 6
-                   self.level_linestyles))  # 7
+        data = zip(self.energies,
+                   self.positions,
+                   self.bottom_texts,
+                   self.top_texts,
+                   self.right_texts,
+                   self.left_texts,
+                   self.colors,
+                   self.level_hline_kwargs,
+                   self.text_offsets)
 
-        for level in data:
-            start = level[1]*(self.dimension+self.space)
-            self.ax.hlines(level[0], start, start + self.dimension,
-                      color=level[4],
-                      linestyles = level[7])
-            self.ax.text(start+self.dimension/2.,  # X
-                    level[0]+self.offset,  # Y
-                    level[3],  # self.top_texts
-                    horizontalalignment='center',
-                    verticalalignment='bottom',
-                    color=self.color_top_text)
-
-            self.ax.text(start + self.dimension,  # X
-                    level[0],  # Y
-                    level[5],  # self.bottom_text
-                    horizontalalignment='left',
-                    verticalalignment='center',
-                    color=self.color_bottom_text)
-
-            self.ax.text(start,  # X
-                    level[0],  # Y
-                    level[6],  # self.bottom_text
-                    horizontalalignment='right',
-                    verticalalignment='center',
-                    color=self.color_bottom_text)
-
-            self.ax.text(start + self.dimension/2.,  # X
-                    level[0] - self.offset*2,  # Y
-                    level[2],  # self.bottom_text
-                    horizontalalignment='center',
-                    verticalalignment='top',
-                    color=self.color_bottom_text)
+        for ener,pos,bot,top,right,left,color,kw,toff in data:
+            start  = pos*(self.dimension+self.space)
+            middle = start + self.dimension/2.
+            end    = start + self.dimension
+            self.ax.hlines(ener, start, end, color=color, **kw)
+            to = toff['top']
+            bo = toff['bottom']
+            lo = toff['left']
+            ro = toff['right']
+            self.ax.text(middle+to[0], ener+self.offset+to[1], top,
+                         horizontalalignment='center',
+                         verticalalignment='bottom',
+                         color=self.color_top_text)
+            self.ax.text(end+ro[0], ener+ro[1], right,
+                         horizontalalignment='left',
+                         verticalalignment='center',
+                         color=self.color_right_text)
+            self.ax.text(start+lo[0], ener+lo[1], left,
+                         horizontalalignment='right',
+                         verticalalignment='center',
+                         color=self.color_left_text)
+            self.ax.text(middle+bo[0], ener-self.offset*2+bo[1], bot,
+                         horizontalalignment='center',
+                         verticalalignment='top',
+                         color=self.color_bottom_text)
         if show_IDs:
             # for showing the ID allowing the user to identify the level
-            for ind, level in enumerate(data):
-                start = level[1]*(self.dimension+self.space)
-                self.ax.text(start, level[0]+self.offset, str(ind),
-                        horizontalalignment='right', color='red')
+            for ind,(ener,pos) in enumerate(zip(self.energies,self.positions)):
+                start = pos * (self.dimension + self.space)
+                self.ax.text(start, ener+self.offset, str(ind),
+                             horizontalalignment='right', color='red')
 
         for idx, arrow in enumerate(self.arrows):
             # by Kalyan Jyoti Kalita: put arrows between to levels
@@ -314,27 +322,105 @@ class ED:
                             bbox=dict(boxstyle='round', fc='white'),
                             ha='center', va='center')
 
-        for idx, link in enumerate(self.links):
-            # here we connect the levels with the links
-            # x1, x2   y1, y2
-            for i in link:
-                # i is a tuple: (end_level_id,ls,linewidth,color)
-                start = self.positions[idx]*(self.dimension+self.space)
-                x1 = start + self.dimension
-                x2 = self.positions[i[0]]*(self.dimension+self.space)
-                y1 = self.energies[idx]
-                y2 = self.energies[i[0]]
-                line = Line2D([x1, x2], [y1, y2],
-                              ls=i[1],
-                              linewidth=i[2],
-                              color=i[3])
-                self.ax.add_line(line)
+        for (i1,i2,kw) in self.links:
+            pos1 = self.positions[i1]
+            pos2 = self.positions[i2]
+            ener1 = self.energies[i1]
+            ener2 = self.energies[i2]
+
+            x1 = pos1*(self.dimension+self.space) + self.dimension
+            x2 = pos2*(self.dimension+self.space)
+            y1 = ener1
+            y2 = ener2
+            self.ax.add_line(Line2D([x1,x2], [y1,y2], **kw))
 
         for box in self.electons_boxes:
             # here we add the boxes
             # x,y,boxes,electrons,side,spacing_f
             x, y, boxes, electrons, side, spacing_f, priority = box
             plot_orbital_boxes(self.ax, x, y, boxes, electrons, side, spacing_f, priority)
+
+        return self.fig, self.ax
+
+    def plot_dots(self, show_IDs=False, ylabel="Energy / $kcal$ $mol^{-1}$", ax: plt.Axes = None):
+        self.__create_figure_ax(ax, ylabel)
+        self.__auto_adjust()
+
+        for (i1,i2,kw) in self.links:
+            pos1 = self.positions[i1]
+            pos2 = self.positions[i2]
+            ener1 = self.energies[i1]
+            ener2 = self.energies[i2]
+
+            x1 = pos1*(self.dimension+self.space) + 0.5 * self.dimension
+            x2 = pos2*(self.dimension+self.space) + 0.5 * self.dimension
+            y1 = ener1
+            y2 = ener2
+            self.ax.add_line(Line2D([x1,x2], [y1,y2], **kw))
+
+        data = zip(self.energies,
+                   self.positions,
+                   self.bottom_texts,
+                   self.top_texts,
+                   self.left_texts,
+                   self.right_texts,
+                   self.colors,
+                   self.text_offsets)
+        for ener,pos,bot,top,left,right,colors,toff in data:
+            start  = pos*(self.dimension+self.space)
+            middle = start + self.dimension/2.
+            end    = start + self.dimension
+            to = toff['top']
+            bo = toff['bottom']
+            lo = toff['left']
+            ro = toff['right']
+            hpad = self.dimension * 0.2
+            self.ax.text(middle+to[0], ener+self.offset+to[1], top,
+                         horizontalalignment='center',
+                         verticalalignment='bottom',
+                         color=self.color_top_text)
+            self.ax.text(middle+hpad+ro[0], ener+ro[1], right,
+                         horizontalalignment='left',
+                         verticalalignment='center',
+                         color=self.color_right_text)
+            self.ax.text(middle-hpad+lo[0], ener+lo[1], left,
+                         horizontalalignment='right',
+                         verticalalignment='center',
+                         color=self.color_left_text)
+            self.ax.text(middle+bo[0], ener-self.offset*2+bo[1], bot,
+                         horizontalalignment='center',
+                         verticalalignment='top',
+                         color=self.color_bottom_text)
+        if show_IDs:
+            for ind,(ener,pos) in enumerate(zip(self.energies,self.positions)):
+                start = pos * (self.dimension + self.space)
+                self.ax.text(start, ener+self.offset, str(ind),
+                             horizontalalignment='right', color='red')
+
+        x_pos = [e*(self.dimension+self.space)+self.dimension/2. for e in self.positions]
+        self.ax.plot(x_pos, self.energies, **self.plot_dots_kwargs)
+
+        return self.fig, self.ax
+
+    def __create_figure_ax(self, ax, ylabel):
+        # Create a figure and axis if the user didn't specify them.
+        if not ax:
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(111, aspect=self.aspect)
+        # Otherwise register the axes and figure the user passed.
+        else:
+            self.ax = ax
+            self.fig = ax.figure
+
+            # Constrain the target axis to have the proper aspect ratio
+            self.ax.set_aspect(self.aspect)
+
+        self.ax.set_ylabel(ylabel)
+        self.ax.axes.get_xaxis().set_visible(False)
+        self.ax.spines['top'].set_visible(False)
+        self.ax.spines['right'].set_visible(False)
+        self.ax.spines['bottom'].set_visible(False)
+
 
     def __auto_adjust(self):
         '''
