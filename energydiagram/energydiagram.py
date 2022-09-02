@@ -27,6 +27,7 @@ class ED:
         self.offset = 'auto'
         self.offset_ratio = 0.02
         self.color_bottom_text = 'blue'
+        self.color_top_text = 'blue'
         self.aspect = aspect
         self.round_energies_at_digit = "keep all digits"
         # data
@@ -265,7 +266,8 @@ class ED:
                     level[0]+self.offset,  # Y
                     level[3],  # self.top_texts
                     horizontalalignment='center',
-                    verticalalignment='bottom')
+                    verticalalignment='bottom',
+                    color=self.color_top_text)
 
             self.ax.text(start + self.dimension,  # X
                     level[0],  # Y
