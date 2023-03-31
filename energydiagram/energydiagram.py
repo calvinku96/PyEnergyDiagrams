@@ -16,61 +16,104 @@ y|
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from .box_notation import plot_orbital_boxes
+import math
+from typing import Union, Tuple
+from dataclasses import dataclass
+
+
+@dataclass
+class EnergyLevel:
+    energy: float
+    bottom_text: str
+    top_text: str
+    left_text: str
+    right_text: str
+    pos: int
+    line_kw: dict
+    bottom_text_kw: dict
+    top_text_kw: dict
+    left_text_kw: dict
+    right_text_kw: dict
+
+@dataclass
+class Link:
+    start_id: int
+    end_id: int
+    link_kw: dict
+    label: str
+    label_rot: Union[str, float]
+    label_offset: Tuple[int, int]
+    label_kwargs: dict
 
 
 class ED:
-    def __init__(self, aspect='equal'):
+    def __init__(self, **kwargs):
         # plot parameters
-        self.ratio = 1.6181
-        self.dimension = 'auto'
-        self.space = 'auto'
-        self.offset = 'auto'
-        self.offset_ratio = 0.02
-        self.color_bottom_text = 'blue'
-        self.aspect = aspect
-        self.round_energies_at_digit = "keep all digits"
-        self.top_text_fontsize = "medium"
-        self.bottom_text_fontsize = "medium"
-        self.right_text_fontsize = "medium"
-        self.left_text_fontsize = "medium"
+        self.ratio = kwargs.get('ratio', 1.6181)
+        self.dimension = kwargs.get('dimension', 'auto')
+        self.space = kwargs.get('space', 'auto')
+        self.offset = kwargs.get('offset', 'auto')
+        self.offset_ratio = kwargs.get('offset_ratio', 0.02)
+        self.aspect = kwargs.get('aspect', 'equal')
+
+        self.top_text_kwargs = kwargs.get('top_text_kwargs', {
+            "fontsize": "medium",
+            "color": "blue",
+            "horizontalalignment": "center",
+            "verticalalignment": "bottom",
+        })
+        self.bottom_text_kwargs = kwargs.get('bottom_text_kwargs', {
+            "fontsize": "medium",
+            "color": "blue",
+            "horizontalalignment": "center",
+            "verticalalignment": "top",
+        })
+        self.left_text_kwargs = kwargs.get('left_text_kwargs', {
+            "fontsize": "medium",
+            "color": "black",
+            "horizontalalignment": "right",
+            "verticalalignment": "center",
+        })
+        self.right_text_kwargs = kwargs.get('right_text_kwargs', {
+            "fontsize": "medium",
+            "color": "black",
+            "horizontalalignment": "left",
+            "verticalalignment": "center",
+        })
+
         # data
         self.pos_number = 0
-        self.energies = []
-        self.positions = []
-        self.colors = []
-        self.top_texts = []
-        self.bottom_texts = []
-        self.left_texts = []
-        self.right_texts = []
+        self.levels = []
         self.links = []
         self.arrows = []
         self.electons_boxes = []
-        self.level_linestyles = []
-        # matplotlib fiugre handlers
-        self.fig = None
-        self.ax = None
 
-    def add_level(self, energy, bottom_text='', position=None, color='k',
-                  top_text='Energy', right_text='', left_text='',linestyle='solid'):
+    def add_level(
+        self, energy,
+        bottom_text='', position=None, color='k',
+        top_text='Energy', right_text='', left_text='',
+        linestyle='solid',
+        line_kwargs={}, bottom_text_kwargs={}, top_text_kwargs={},
+        right_text_kwargs={}, left_text_kwargs={}
+    ):
         '''
         Method of ED class
         This method add a new energy level to the plot.
-
         Parameters
         ----------
-        energy : int
+        energy : float
                  The energy of the level in Kcal mol-1
         bottom_text  : str
                 The text on the bottom of the level (label of the level)
                 (default '')
-        position  : str
+        position  : str | int
                 The position of the level in the plot. Keep it empty to add
                 the level on the right of the previous level use 'last' as
                 argument for adding the level to the last position used
                 for the level before.
                 An integer can be used for adding the level to an arbitrary
                 position.
-                (default  None)
+                (default None)
         color  : str
                 Color of the level  (default  'k')
         top_text  : str
@@ -83,17 +126,29 @@ class ED:
         linestyle  : str
                 The linestyle of the level, one of the following values:
                 'solid', 'dashed', 'dashdot', 'dotted' (default  'solid')
-
-
-
-
+        bottom_text_kwargs : dict
+                This will be passed to matplotlib.axes.Axes.text as keyword
+                arguments for bottom_text
+                (default {})
+        top_text_kwargs : dict
+                This will be passed to matplotlib.axes.Axes.text as keyword
+                arguments for top_text
+                (default {})
+        right_text_kwargs : dict
+                This will be passed to matplotlib.axes.Axes.text as keyword
+                arguments for right_text
+                (default {})
+        left_text_kwargs : dict
+                This will be passed to matplotlib.axes.Axes.text as keyword
+                arguments for left_text
+                (default {})
         Returns
         -------
-        Append to the class data all the information regarding the level added
+        id of the level
         '''
 
         if position is None:
-            position = self.pos_number + 1
+            position = self.pos_number
             self.pos_number += 1
         elif isinstance(position, (int, float)):
             pass
@@ -101,55 +156,51 @@ class ED:
             position = self.pos_number
         else:
             raise ValueError(
-                "Position must be None or 'last' (abrv. 'l') or in case an integer or float specifing the position. It was: %s" % position)
-        if top_text == 'Energy':
-            if self.round_energies_at_digit == "keep all digits":
-                top_text = energy
-            else:
-                top_text = round(energy,self.round_energies_at_digit)
+                f"Position must be None or 'last' (abrv. 'l') or in case an integer or float specifing the position. It was: {position}"
+            )
 
-        link = []
-        self.colors.append(color)
-        self.energies.append(energy)
-        self.positions.append(position)
-        self.top_texts.append(top_text)
-        self.bottom_texts.append(bottom_text)
-        self.left_texts.append(left_text)
-        self.right_texts.append(right_text)
-        self.links.append(link)
-        self.level_linestyles.append(linestyle)
-        self.arrows.append([])
+        if top_text == 'Energy':
+            top_text = f"{energy:.3g}"
+
+        id = len(self.levels)
+        self.levels.append(EnergyLevel(
+            energy,
+            bottom_text,
+            top_text,
+            left_text,
+            right_text,
+            position,
+            {'color': color, 'linestyle': linestyle} | line_kwargs,
+            bottom_text_kwargs,
+            top_text_kwargs,
+            left_text_kwargs,
+            right_text_kwargs,
+        ))
+        return id
 
     def add_arrow(self, start_level_id, end_level_id):
         '''
         Method of ED class
         Add a arrow between two energy levels using IDs of the level. Use
         self.plot(show_index=True) to show the IDs of the levels.
-
         Parameters
         ----------
         start_level_id : int
                  Starting level ID
         end_level_id : int
                  Ending level ID
-
-        Returns
-        -------
-        Append arrow to self.arrows
-
         '''
-        self.arrows[start_level_id].append(end_level_id)
+        self.arrows.append((start_level_id, end_level_id))
 
-    def add_link(self, start_level_id, end_level_id,
-                 color='k',
-                 ls='--',
-                 linewidth=1,
-                 ):
+    def add_link(
+        self, start_level_id, end_level_id,
+        color='k', linestyle='dashed', linewidth=1, link_kwargs={},
+        label=None, label_rot="above", label_offset=(0.,0.), label_kwargs={}
+    ):
         '''
         Method of ED class
         Add a link between two energy levels using IDs of the level. Use
         self.plot(show_index=True) to show the IDs of the levels.
-
         Parameters
         ----------
         start_level_id : int
@@ -158,17 +209,52 @@ class ED:
                  Ending level ID
         color : str
                 color of the line
-        ls : str
-                line styple e.g. -- , ..
+                (default 'k')
+        linestyle : str
+                line style
+                (default 'dashed')
         linewidth : int
                 line width
-
-        Returns
-        -------
-        Append link to self.links
-
+                (default 1)
+        link_kwargs : dict
+                this will be passed to matplotlib.lines.Line2D of the link
+                as kwargs
+                this dict will override color, linestyle, and linewidth
+                (default {})
+        label : str | None
+                add a label in the middle of the link
+                (default None)
+        label_rot : str | float
+                "above", "below", "vertical", "horizontal", or float
+                - above: above the line, rotated parallel to the line
+                - below: below the line, rotated parallel to the line
+                - vertical
+                - horizontal
+                - float: rotation in degrees
+                (default "above")
+        label_offset : tuple[float, float]
+                if label_rot is either "above" or "below",
+                  label_offset[0] is the offset parallel to the line
+                  label_offset[1] is the offset perpendicular to the line
+                if label_rot is either "vertical", "horizontal", or a float
+                  label_offset[0] is the horizontal offset
+                  label_offset[1] is the vertical offset
+        label_kwargs : dict
+                this will be passed to matplotlib.axes.Axes.text
+                of the label
+                this must not contain "rotation", use label_rot instead
+                to specify rotation
         '''
-        self.links[start_level_id].append((end_level_id, ls, linewidth, color))
+        if "rotation" in label_kwargs:
+            raise ValueError("'rotation' key found in label_kwargs, use label_rot to specify rotation")
+        if not(label_rot in ("above", "below", "vertical", "horizontal") or isinstance(label_rot, (float, int))):
+            raise ValueError("label_rot invalid value")
+
+        self.links.append(Link(
+            start_level_id, end_level_id,
+            {'color': color, 'linestyle': linestyle, 'linewidth': linewidth} | link_kwargs,
+            label, label_rot, label_offset, label_kwargs
+        ))
 
     def add_electronbox(self,
                         level_id,
@@ -194,10 +280,15 @@ class ED:
 
         '''
         self.__auto_adjust()
-        x = self.positions[level_id] * \
-            (self.dimension+self.space)+self.dimension*0.5
-        y = self.energies[level_id]
+        level_pos = self.get_level_line(level_id)
+        x = 0.5 * (level_pos[0] + level_pos[1])
+        y = self.levels[level_id].energy
         self.electons_boxes.append((x, y, boxes, electrons, side, spacing_f))
+
+
+    def get_level_line(self, id):
+        start = self.levels[id].pos * (self.dimension + self.space)
+        return (start, start + self.dimension)
 
     def plot(self, show_IDs=False, ylabel="Energy / $kcal$ $mol^{-1}$", ax: plt.Axes = None):
         '''
@@ -248,90 +339,99 @@ class ED:
 
         self.__auto_adjust()
 
-        data = list(zip(self.energies,  # 0
-                   self.positions,  # 1
-                   self.bottom_texts,  # 2
-                   self.top_texts,  # 3
-                   self.colors,  # 4    
-                   self.right_texts, # 5
-                   self.left_texts, # 6
-                   self.level_linestyles))  # 7
+        def remove_offset(inp):
+            return {k: v for k, v in inp.items() if k != "offset"}
 
-        for level in data:
-            start = level[1]*(self.dimension+self.space)
-            self.ax.hlines(level[0], start, start + self.dimension,
-                      color=level[4],
-                      linestyles = level[7])
-            self.ax.text(start+self.dimension/2.,  # X
-                    level[0]+self.offset,  # Y
-                    level[3],  # self.top_texts
-                    horizontalalignment='center',
-                    verticalalignment='bottom',
-                    fontsize=self.top_text_fontsize)
+        for idx, l in enumerate(self.levels):
+            line_pos = self.get_level_line(idx)
+            mid = 0.5 * (line_pos[0] + line_pos[1])
+            self.ax.hlines(l.energy, line_pos[0], line_pos[1], **l.line_kw)
+            ttext_offset = l.top_text_kw.get('offset', (0.0, 0.0))
+            ttext_kw = self.top_text_kwargs | remove_offset(l.top_text_kw)
+            self.ax.text(
+                mid + ttext_offset[0],
+                l.energy + self.offset + ttext_offset[1],
+                l.top_text, **ttext_kw
+            )
+            btext_offset = l.bottom_text_kw.get('offset', (0.0, 0.0))
+            btext_kw = self.bottom_text_kwargs | remove_offset(l.bottom_text_kw)
+            self.ax.text(
+                mid + btext_offset[0],
+                l.energy - 2 * self.offset + btext_offset[1],
+                l.bottom_text, **btext_kw
+            )
+            rtext_offset = l.right_text_kw.get('offset', (0.0, 0.0))
+            rtext_kw = self.right_text_kwargs | remove_offset(l.right_text_kw)
+            self.ax.text(
+                line_pos[1] + rtext_offset[0],
+                l.energy + rtext_offset[1],
+                l.right_text, **rtext_kw
+            )
+            ltext_offset = l.left_text_kw.get('offset', (0.0, 0.0))
+            ltext_kw = self.left_text_kwargs | remove_offset(l.left_text_kw)
+            self.ax.text(
+                line_pos[0] + ltext_offset[0],
+                l.energy + ltext_offset[1],
+                l.left_text, **ltext_kw
+            )
+            if show_IDs:
+                self.ax.text(
+                    line_pos[0], l.energy + self.offset, str(idx),
+                    horizontalalignment='right', color='red'
+                )
 
-            self.ax.text(start + self.dimension,  # X
-                    level[0],  # Y
-                    level[5],  # self.right_text
-                    horizontalalignment='left',
-                    verticalalignment='center',
-                    color=self.color_bottom_text,
-                    fontsize=self.left_text_fontsize)
 
-            self.ax.text(start,  # X
-                    level[0],  # Y
-                    level[6],  # self.left_text
-                    horizontalalignment='right',
-                    verticalalignment='center',
-                    color=self.color_bottom_text,
-                    fontsize=self.right_text_fontsize)
+        for l in self.links:
+            x1 = self.get_level_line(l.start_id)[1]
+            x2 = self.get_level_line(l.end_id)[0]
+            y1 = self.levels[l.start_id].energy
+            y2 = self.levels[l.end_id].energy
+            self.ax.add_line(Line2D((x1, x2), (y1, y2), **l.link_kw))
+            if l.label:
+                labelpos = [0.5 * (x1 + x2), 0.5 * (y1 + y2)]
+                kw = {**l.label_kwargs}
+                if l.label_rot in ("vertical", "horizontal") or isinstance(l.label_rot, (float, int)):
+                    kw["rotation"] = l.label_rot
+                    labelpos[0] += l.label_offset[0]
+                    labelpos[1] += l.label_offset[1]
+                elif l.label_rot in ("above", "below"):
+                    rot = math.atan2(y2-y1,x2-x1)
+                    kw["rotation"] = rot / math.pi * 180.0
+                    kw["horizontalalignment"] = "center"
+                    kw["verticalalignment"] = "center"
+                    if l.label_rot == "below":
+                        labelpos[0] +=  2.0 * self.offset * math.sin(rot)
+                        labelpos[1] += -2.0 * self.offset * math.cos(rot)
+                    else:
+                        labelpos[0] += -1.5 * self.offset * math.sin(rot)
+                        labelpos[1] +=  1.5 * self.offset * math.cos(rot)
+                    labelpos[0] += l.label_offset[0] * math.cos(rot) - l.label_offset[1] * math.sin(rot)
+                    labelpos[1] += l.label_offset[0] * math.sin(rot) + l.label_offset[1] * math.cos(rot)
+                else:
+                    raise ValueError("label_rot invalid value")
 
-            self.ax.text(start + self.dimension/2.,  # X
-                    level[0] - self.offset*2,  # Y
-                    level[2],  # self.bottom_text
-                    horizontalalignment='center',
-                    verticalalignment='top',
-                    color=self.color_bottom_text,
-                    fontsize=self.bottom_text_fontsize)
-        if show_IDs:
-            # for showing the ID allowing the user to identify the level
-            for ind, level in enumerate(data):
-                start = level[1]*(self.dimension+self.space)
-                self.ax.text(start, level[0]+self.offset, str(ind),
-                        horizontalalignment='right', color='red')
+                self.ax.text(labelpos[0], labelpos[1], l.label, **kw)
 
-        for idx, arrow in enumerate(self.arrows):
+        for idx, (start_id, end_id) in enumerate(self.arrows):
             # by Kalyan Jyoti Kalita: put arrows between to levels
-            # x1, x2   y1, y2
-            for i in arrow:
-                start = self.positions[idx]*(self.dimension+self.space)
-                x1 = start + 0.5*self.dimension
-                x2 = start + 0.5*self.dimension
-                y1 = self.energies[idx]
-                y2 = self.energies[i]
-                gap = y1-y2
-                gapnew = '{0:.2f}'.format(gap)
-                middle = y1-0.5*gap  # warning: this way works for negative HOMO/LUMO energies
-                self.ax.annotate("", xy=(x1, y1), xytext=(x2, middle), arrowprops=dict(
-                    color='green', width=2.5, headwidth=5))
-                self.ax.annotate(gapnew, xy=(x2, y2), xytext=(x1, middle), color='green', arrowprops=dict(width=2.5, headwidth=5, color='green'),
-                            bbox=dict(boxstyle='round', fc='white'),
-                            ha='center', va='center')
-
-        for idx, link in enumerate(self.links):
-            # here we connect the levels with the links
-            # x1, x2   y1, y2
-            for i in link:
-                # i is a tuple: (end_level_id,ls,linewidth,color)
-                start = self.positions[idx]*(self.dimension+self.space)
-                x1 = start + self.dimension
-                x2 = self.positions[i[0]]*(self.dimension+self.space)
-                y1 = self.energies[idx]
-                y2 = self.energies[i[0]]
-                line = Line2D([x1, x2], [y1, y2],
-                              ls=i[1],
-                              linewidth=i[2],
-                              color=i[3])
-                self.ax.add_line(line)
+            level_pos = self.get_level_line(start_id)
+            x1 = 0.5 * (level_pos[0] + level_pos[1])
+            x2 = x1
+            y1 = self.levels[start_id].energy
+            y2 = self.levels[end_id].energy
+            gap = y1-y2
+            gap_fmt = f"{gap:.2f}"
+            middle = y1-0.5*gap  # warning: this way works for negative HOMO/LUMO energies
+            self.ax.annotate(
+                "", xy=(x1, y1), xytext=(x2, middle),
+                arrowprops=dict(color='green', width=2.5, headwidth=5)
+            )
+            self.ax.annotate(
+                gap_fmt, xy=(x2, y2), xytext=(x1, middle), color='green',
+                arrowprops=dict(width=2.5, headwidth=5, color='green'),
+                bbox=dict(boxstyle='round', fc='white'),
+                ha='center', va='center'
+            )
 
         for box in self.electons_boxes:
             # here we add the boxes
@@ -353,11 +453,13 @@ class ED:
 
         '''
         # Max range between the energy
-        Energy_variation = abs(max(self.energies) - min(self.energies))
+        energies = [l.energy for l in self.levels]
+        pos = {l.pos for l in self.levels}
+        Energy_variation = abs(max(energies) - min(energies))
         if self.dimension == 'auto' or self.space == 'auto':
             # Unique positions of the levels
-            unique_positions = float(len(set(self.positions)))
-            space_for_level = Energy_variation*self.ratio/unique_positions
+            positions = float(max(pos) - min(pos) + 1)
+            space_for_level = Energy_variation*self.ratio/positions
             self.dimension = space_for_level*0.7
             self.space = space_for_level*0.3
 
